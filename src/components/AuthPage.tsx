@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { ArrowLeft, BarChart3 } from 'lucide-react';
+import apiService from '../services/apiService';
 
 interface AuthPageProps {
   mode: 'login' | 'signup';
@@ -17,11 +18,33 @@ export default function AuthPage({ mode, onModeChange, onAuth, onBack }: AuthPag
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // For demo purposes, just call onAuth
-    onAuth();
+    setIsLoading(true);
+    setError('');
+
+    try {
+      if (mode === 'signup') {
+        if (password !== confirmPassword) {
+          setError('Passwords do not match');
+          setIsLoading(false);
+          return;
+        }
+        await apiService.signup(name, email, password);
+        // Auto-login after successful signup
+        await apiService.login(email, password);
+      } else {
+        await apiService.login(email, password);
+      }
+      onAuth();
+    } catch (error: any) {
+      setError(error.message || 'An error occurred');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -111,8 +134,14 @@ export default function AuthPage({ mode, onModeChange, onAuth, onBack }: AuthPag
                 </div>
               )}
               
-              <Button type="submit" className="w-full mt-6">
-                {mode === 'login' ? 'Sign In' : 'Create Account'}
+              {error && (
+                <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+                  {error}
+                </div>
+              )}
+              
+              <Button type="submit" className="w-full mt-6" disabled={isLoading}>
+                {isLoading ? 'Loading...' : (mode === 'login' ? 'Sign In' : 'Create Account')}
               </Button>
             </form>
             
