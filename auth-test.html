@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auth Error Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .error { color: red; margin: 10px 0; }
+        .success { color: green; margin: 10px 0; }
+        button { margin: 5px; padding: 10px; }
+        input { margin: 5px; padding: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Authentication Error Testing</h1>
+    
+    <h2>Test Wrong Password</h2>
+    <button onclick="testWrongPassword()">Test Wrong Password</button>
+    <div id="wrongPasswordResult"></div>
+    
+    <h2>Test Wrong Email</h2>
+    <button onclick="testWrongEmail()">Test Wrong Email</button>
+    <div id="wrongEmailResult"></div>
+    
+    <h2>Test Correct Login</h2>
+    <button onclick="testCorrectLogin()">Test Correct Login</button>
+    <div id="correctLoginResult"></div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080/api';
+        
+        async function testAuth(email, password, resultElementId) {
+            const resultElement = document.getElementById(resultElementId);
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    resultElement.innerHTML = `<div class="error">Error: ${errorData.message}</div>`;
+                } else {
+                    const data = await response.json();
+                    resultElement.innerHTML = `<div class="success">Success: Logged in as ${data.name}</div>`;
+                }
+            } catch (error) {
+                resultElement.innerHTML = `<div class="error">Network Error: ${error.message}</div>`;
+            }
+        }
+        
+        function testWrongPassword() {
+            testAuth('john@example.com', 'wrongpassword', 'wrongPasswordResult');
+        }
+        
+        function testWrongEmail() {
+            testAuth('nonexistent@example.com', 'password123', 'wrongEmailResult');
+        }
+        
+        function testCorrectLogin() {
+            testAuth('john@example.com', 'password123', 'correctLoginResult');
+        }
+    </script>
+</body>
+</html>

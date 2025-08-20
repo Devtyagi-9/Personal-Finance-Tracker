@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Progress } from './ui/progress';
@@ -21,6 +21,8 @@ import {
 import { AreaChart, Area, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import AddTransactionModal from './AddTransactionModal';
 import BudgetModal from './BudgetModal';
+import apiService, { Transaction as ApiTransaction, Budget as ApiBudget, DashboardData } from '../services/apiService';
+import Loading from './Loading';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -31,8 +33,8 @@ interface Transaction {
   description: string;
   amount: number;
   category: string;
-  date: string;
-  type: 'income' | 'expense';
+  transactionDate: string;
+  type: 'INCOME' | 'EXPENSE';
   notes?: string;
 }
 
@@ -42,25 +44,6 @@ interface Category {
   budget: number;
   color: string;
 }
-
-// Mock data for demonstration
-const initialTransactions: Transaction[] = [
-  { id: 1, description: 'Grocery Store', amount: -85.50, category: 'Food & Dining', date: '2025-01-15', type: 'expense' },
-  { id: 2, description: 'Salary Deposit', amount: 3500.00, category: 'Salary', date: '2025-01-15', type: 'income' },
-  { id: 3, description: 'Coffee Shop', amount: -12.75, category: 'Food & Dining', date: '2025-01-14', type: 'expense' },
-  { id: 4, description: 'Gas Station', amount: -45.20, category: 'Transportation', date: '2025-01-14', type: 'expense' },
-  { id: 5, description: 'Netflix Subscription', amount: -15.99, category: 'Entertainment', date: '2025-01-13', type: 'expense' },
-  { id: 6, description: 'Freelance Project', amount: 850.00, category: 'Freelance', date: '2025-01-12', type: 'income' },
-  { id: 7, description: 'Restaurant Dinner', amount: -67.30, category: 'Food & Dining', date: '2025-01-11', type: 'expense' },
-  { id: 8, description: 'Uber Ride', amount: -23.45, category: 'Transportation', date: '2025-01-10', type: 'expense' },
-];
-
-const initialCategories: Category[] = [
-  { name: 'Food & Dining', spent: 298.25, budget: 400, color: 'bg-chart-1' },
-  { name: 'Transportation', spent: 165.80, budget: 200, color: 'bg-chart-2' },
-  { name: 'Entertainment', spent: 89.50, budget: 150, color: 'bg-chart-3' },
-  { name: 'Shopping', spent: 245.00, budget: 300, color: 'bg-chart-4' },
-];
 
 // Monthly data for charts
 const monthlyData = [
@@ -81,43 +64,115 @@ const pieChartData = [
 ];
 
 export default function Dashboard({ onLogout }: DashboardProps) {
-  const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
-  const [categories, setCategories] = useState<Category[]>(initialCategories);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState('This Month');
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
 
-  const handleAddTransaction = (newTransaction: Omit<Transaction, 'id'>) => {
-    const transaction: Transaction = {
-      ...newTransaction,
-      id: Math.max(...transactions.map(t => t.id)) + 1
-    };
-    setTransactions(prev => [transaction, ...prev]);
-    
-    // Update category spending if it's an expense
-    if (transaction.type === 'expense') {
-      setCategories(prev => prev.map(cat => 
-        cat.name === transaction.category 
-          ? { ...cat, spent: cat.spent + Math.abs(transaction.amount) }
-          : cat
-      ));
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Load transactions, budgets, and dashboard data in parallel
+      const [transactionsData, budgetsData, dashboardData] = await Promise.all([
+        apiService.getTransactions(),
+        apiService.getBudgets(),
+        apiService.getDashboardData()
+      ]);
+
+      // Convert API transactions to display format
+      const formattedTransactions: Transaction[] = transactionsData.map(t => ({
+        id: t.id!,
+        description: t.description,
+        amount: t.type === 'EXPENSE' ? -Math.abs(t.amount) : Math.abs(t.amount),
+        category: t.category,
+        transactionDate: t.transactionDate,
+        type: t.type,
+        notes: t.notes
+      }));
+
+      // Convert budgets to categories format
+      const formattedCategories: Category[] = budgetsData.map((budget, index) => ({
+        name: budget.category,
+        spent: budget.spentAmount,
+        budget: budget.budgetLimit,
+        color: `bg-chart-${(index % 4) + 1}` // Cycle through chart colors
+      }));
+
+      setTransactions(formattedTransactions);
+      setCategories(formattedCategories);
+      setDashboardData(dashboardData);
+    } catch (error) {
+      console.error('Failed to load dashboard data:', error);
+      // If unauthorized, logout the user
+      if (error instanceof Error && error.message.includes('Unauthorized')) {
+        onLogout();
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleUpdateBudgets = (updatedCategories: Category[]) => {
-    setCategories(updatedCategories);
+  const handleAddTransaction = async (newTransaction: Omit<Transaction, 'id'>) => {
+    try {
+      // Convert display format to API format
+      const apiTransaction = {
+        description: newTransaction.description,
+        amount: Math.abs(newTransaction.amount), // API expects positive amounts
+        category: newTransaction.category,
+        transactionDate: newTransaction.transactionDate,
+        type: newTransaction.type,
+        notes: newTransaction.notes
+      };
+
+      await apiService.createTransaction(apiTransaction);
+      
+      // Reload dashboard data to get updated information
+      await loadDashboardData();
+    } catch (error) {
+      console.error('Failed to add transaction:', error);
+    }
   };
 
-  const totalIncome = transactions
-    .filter(t => t.type === 'income')
-    .reduce((sum, t) => sum + t.amount, 0);
+  const handleUpdateBudgets = async (updatedCategories: Category[]) => {
+    try {
+      // Convert categories back to budget format and update
+      for (const category of updatedCategories) {
+        const existingBudget = categories.find(c => c.name === category.name);
+        if (existingBudget) {
+          const currentDate = new Date();
+          const budgetData = {
+            category: category.name,
+            budgetLimit: category.budget,
+            month: currentDate.getMonth() + 1,
+            year: currentDate.getFullYear()
+          };
+          await apiService.createOrUpdateBudget(budgetData);
+        }
+      }
+      
+      // Reload dashboard data to get updated information
+      await loadDashboardData();
+    } catch (error) {
+      console.error('Failed to update budgets:', error);
+    }
+  };
 
-  const totalExpenses = Math.abs(transactions
-    .filter(t => t.type === 'expense')
-    .reduce((sum, t) => sum + t.amount, 0));
+  if (loading) {
+    return <Loading />;
+  }
 
-  const netBalance = totalIncome - totalExpenses;
-  const monthlyGrowth = 12.5; // Mock data
+  const totalIncome = dashboardData?.totalIncome || 0;
+  const totalExpenses = dashboardData?.totalExpenses || 0;
+  const netBalance = dashboardData?.balance || 0;
+  const monthlyGrowth = 12.5; // This could be calculated from historical data
 
   return (
     <div className="min-h-screen bg-background">
@@ -360,9 +415,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                     <div key={transaction.id} className="flex items-center justify-between p-4 rounded-lg border bg-card/50">
                       <div className="flex items-center gap-4">
                         <div className={`size-10 rounded-full flex items-center justify-center ${
-                          transaction.type === 'income' ? 'bg-success/10' : 'bg-destructive/10'
+                          transaction.type === 'INCOME' ? 'bg-success/10' : 'bg-destructive/10'
                         }`}>
-                          {transaction.type === 'income' 
+                          {transaction.type === 'INCOME' 
                             ? <ArrowUpRight className="size-5 text-success" />
                             : <ArrowDownRight className="size-5 text-destructive" />
                           }
@@ -371,7 +426,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                           <p className="text-[16px]">{transaction.description}</p>
                           <div className="flex items-center gap-2 text-sm text-[14px] text-muted-foreground">
                             <Calendar className="size-3" />
-                            <span>{transaction.date}</span>
+                            <span>{transaction.transactionDate}</span>
                             <Badge variant="secondary" className="text-xs text-[12px]">
                               {transaction.category}
                             </Badge>
@@ -380,9 +435,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                       </div>
                       <div className="text-right">
                         <p className={`text-[16px] ${
-                          transaction.type === 'income' ? 'text-success' : 'text-destructive'
+                          transaction.type === 'INCOME' ? 'text-success' : 'text-destructive'
                         }`}>
-                          {transaction.type === 'income' ? '+' : ''}
+                          {transaction.type === 'INCOME' ? '+' : ''}
                           ${Math.abs(transaction.amount).toFixed(2)}
                         </p>
                       </div>

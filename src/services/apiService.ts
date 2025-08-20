@@ -93,12 +93,19 @@ class ApiService {
       const response = await fetch(url, config);
       
       if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        
         if (response.status === 401) {
+          // For login/signup endpoints, don't redirect automatically
+          if (endpoint.includes('/auth/login') || endpoint.includes('/auth/signup')) {
+            throw new Error(errorData.message === 'Bad credentials' ? 'Invalid email or password' : errorData.message || 'Authentication failed');
+          }
+          // For other protected endpoints, redirect to login
           this.removeAuthToken();
           window.location.href = '/login';
           throw new Error('Unauthorized');
         }
-        const errorData = await response.json().catch(() => ({}));
+        
         throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
 

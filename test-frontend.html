@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal Finance Tracker - Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background-color: #f5f5f5;
+        }
+        .container { 
+            max-width: 600px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group { 
+            margin: 15px 0; 
+        }
+        label { 
+            display: block; 
+            margin-bottom: 5px; 
+            font-weight: bold;
+        }
+        input { 
+            width: 100%; 
+            padding: 10px; 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+            box-sizing: border-box;
+        }
+        button { 
+            background: #007bff; 
+            color: white; 
+            padding: 12px 24px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            margin: 5px;
+        }
+        button:hover { 
+            background: #0056b3; 
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .error { 
+            color: #dc3545; 
+            margin: 10px 0; 
+            padding: 10px;
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+        }
+        .success { 
+            color: #155724; 
+            margin: 10px 0; 
+            padding: 10px;
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 4px;
+        }
+        .dashboard {
+            display: none;
+        }
+        .transaction-list {
+            margin-top: 20px;
+        }
+        .transaction-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+        }
+        .no-transactions {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Personal Finance Tracker</h1>
+        
+        <!-- Auth Form -->
+        <div id="authForm">
+            <h2 id="authTitle">Login</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" required>
+                </div>
+                <div id="errorMessage"></div>
+                <button type="submit" id="submitBtn">Login</button>
+            </form>
+            
+            <div style="margin-top: 20px;">
+                <p>Test accounts:</p>
+                <button onclick="fillTestAccount('john@example.com', 'password123')">Login as John (should have no data)</button>
+                <button onclick="fillTestAccount('jane@example.com', 'password123')">Login as Jane (should have no data)</button>
+                <button onclick="fillTestAccount('jane@example.com', 'wrongpassword')">Test Wrong Password</button>
+            </div>
+        </div>
+        
+        <!-- Dashboard -->
+        <div id="dashboard" class="dashboard">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2>Dashboard</h2>
+                <button onclick="logout()">Logout</button>
+            </div>
+            <div id="userInfo"></div>
+            <div id="transactionsList" class="transaction-list">
+                <h3>Recent Transactions</h3>
+                <div id="transactionsContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080/api';
+        let authToken = null;
+        let currentUser = null;
+
+        // Fill test account details
+        function fillTestAccount(email, password) {
+            document.getElementById('email').value = email;
+            document.getElementById('password').value = password;
+        }
+
+        // Login form submission
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const submitBtn = document.getElementById('submitBtn');
+            const errorDiv = document.getElementById('errorMessage');
+            
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Logging in...';
+            errorDiv.innerHTML = '';
+            
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Login failed');
+                }
+                
+                const data = await response.json();
+                authToken = data.token;
+                currentUser = data;
+                
+                // Show dashboard
+                showDashboard();
+                await loadTransactions();
+                
+            } catch (error) {
+                errorDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Login';
+            }
+        });
+
+        // Show dashboard
+        function showDashboard() {
+            document.getElementById('authForm').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+            
+            document.getElementById('userInfo').innerHTML = `
+                <div class="success">
+                    Welcome, ${currentUser.name}! (${currentUser.email})
+                    <br>User ID: ${currentUser.id}
+                </div>
+            `;
+        }
+
+        // Load transactions
+        async function loadTransactions() {
+            try {
+                const response = await fetch(`${API_BASE}/transactions`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load transactions');
+                }
+                
+                const transactions = await response.json();
+                displayTransactions(transactions);
+                
+            } catch (error) {
+                document.getElementById('transactionsContent').innerHTML = 
+                    `<div class="error">Error loading transactions: ${error.message}</div>`;
+            }
+        }
+
+        // Display transactions
+        function displayTransactions(transactions) {
+            const content = document.getElementById('transactionsContent');
+            
+            if (transactions.length === 0) {
+                content.innerHTML = `
+                    <div class="no-transactions">
+                        ✅ No transactions found! This confirms user data isolation is working correctly.
+                        <br><br>
+                        Each user only sees their own data.
+                    </div>
+                `;
+            } else {
+                const transactionHTML = transactions.map(t => `
+                    <div class="transaction-item">
+                        <div>
+                            <strong>${t.description}</strong><br>
+                            <small>${t.category} • ${t.transactionDate}</small>
+                        </div>
+                        <div style="text-align: right;">
+                            <strong style="color: ${t.type === 'INCOME' ? 'green' : 'red'};">
+                                ${t.type === 'INCOME' ? '+' : '-'}$${Math.abs(t.amount).toFixed(2)}
+                            </strong>
+                        </div>
+                    </div>
+                `).join('');
+                
+                content.innerHTML = transactionHTML;
+            }
+        }
+
+        // Logout
+        function logout() {
+            authToken = null;
+            currentUser = null;
+            document.getElementById('authForm').style.display = 'block';
+            document.getElementById('dashboard').style.display = 'none';
+            document.getElementById('email').value = '';
+            document.getElementById('password').value = '';
+            document.getElementById('errorMessage').innerHTML = '';
+        }
+    </script>
+</body>
+</html>
