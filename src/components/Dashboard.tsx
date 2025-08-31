@@ -145,8 +145,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     try {
       // Convert categories back to budget format and update
       for (const category of updatedCategories) {
-        const existingBudget = categories.find(c => c.name === category.name);
-        if (existingBudget) {
+        // Only create budgets for categories that have a budget amount set
+        if (category.budget > 0) {
           const currentDate = new Date();
           const budgetData = {
             category: category.name,
@@ -212,7 +212,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             </CardHeader>
             <CardContent>
               <div className="text-3xl text-[30px] text-primary">
-                ${netBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              <div className="text-2xl font-bold text-foreground">
+                ₹{netBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </div>
               </div>
               <div className="flex items-center gap-1 mt-2">
                 <ArrowUpRight className="size-3 text-success" />
@@ -229,7 +231,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             </CardHeader>
             <CardContent>
               <div className="text-3xl text-[30px] text-success">
-                +${totalIncome.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              <div className="text-lg font-semibold text-green-600">
+                +₹{totalIncome.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </div>
               </div>
               <p className="text-xs text-[12px] text-muted-foreground mt-2">
                 This month
@@ -244,7 +248,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             </CardHeader>
             <CardContent>
               <div className="text-3xl text-[30px] text-destructive">
-                -${totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              <div className="text-lg font-semibold text-red-600">
+                -₹{totalExpenses.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </div>
               </div>
               <p className="text-xs text-[12px] text-muted-foreground mt-2">
                 This month
@@ -365,7 +371,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                       ))}
                     </Pie>
                     <Tooltip 
-                      formatter={(value: number) => [`$${value.toFixed(2)}`, 'Amount']}
+                      formatter={(value: number) => [`₹${value.toFixed(2)}`, 'Amount']}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -380,7 +386,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                       ></div>
                       <span>{entry.name}</span>
                     </div>
-                    <span className="text-muted-foreground">${entry.value.toFixed(2)}</span>
+                    <span className="text-muted-foreground">₹{entry.value.toFixed(2)}</span>
                   </div>
                 ))}
               </div>
@@ -438,7 +444,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                           transaction.type === 'INCOME' ? 'text-success' : 'text-destructive'
                         }`}>
                           {transaction.type === 'INCOME' ? '+' : ''}
-                          ${Math.abs(transaction.amount).toFixed(2)}
+                          ₹{Math.abs(transaction.amount).toFixed(2)}
                         </p>
                       </div>
                     </div>
@@ -477,7 +483,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                           </div>
                           <div className="text-right">
                             <p className="text-[16px]">
-                              ${category.spent.toFixed(2)} / ${category.budget.toFixed(2)}
+                                                          <span className="text-sm text-muted-foreground">
+                              ₹{category.spent.toFixed(2)} / ₹{category.budget.toFixed(2)}
+                            </span>
                             </p>
                             <p className={`text-sm text-[14px] ${isOverBudget ? 'text-destructive' : 'text-muted-foreground'}`}>
                               {percentage.toFixed(0)}% used
@@ -490,7 +498,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                         />
                         {isOverBudget && (
                           <p className="text-sm text-[14px] text-destructive">
-                            Over budget by ${(category.spent - category.budget).toFixed(2)}
+                            Over budget by ₹{(category.spent - category.budget).toFixed(2)}
                           </p>
                         )}
                       </div>

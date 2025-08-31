@@ -80,7 +80,7 @@ export default function LandingPage({ onGetStarted, onLogin }: LandingPageProps)
                   <div className="text-sm text-muted-foreground">Active Users</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl text-[24px] text-primary">$2M+</div>
+                  <div className="text-2xl text-[24px] text-primary">₹20L+</div>
                   <div className="text-sm text-muted-foreground">Money Tracked</div>
                 </div>
                 <div className="text-center">
@@ -113,7 +113,7 @@ export default function LandingPage({ onGetStarted, onLogin }: LandingPageProps)
               <div className="absolute -right-6 top-6 bg-card border rounded-xl p-4 shadow-lg">
                 <div className="flex items-center gap-2 text-sm">
                   <PiggyBank className="size-4 text-primary" />
-                  <span>$2,450 Saved</span>
+                  <span>₹2,45,000 Saved</span>
                 </div>
               </div>
               

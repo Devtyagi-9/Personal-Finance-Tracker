@@ -8,15 +8,15 @@ import { Textarea } from './ui/textarea';
 import { Calendar } from './ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { format } from 'date-fns';
-import { CalendarIcon, DollarSign } from 'lucide-react';
+import { CalendarIcon, IndianRupee } from 'lucide-react';
 
 interface Transaction {
   id: number;
   description: string;
   amount: number;
   category: string;
-  date: string;
-  type: 'income' | 'expense';
+  transactionDate: string;
+  type: 'INCOME' | 'EXPENSE';
   notes?: string;
 }
 
@@ -27,7 +27,7 @@ interface AddTransactionModalProps {
 }
 
 const categories = {
-  expense: [
+  EXPENSE: [
     'Food & Dining',
     'Transportation',
     'Shopping',
@@ -39,7 +39,7 @@ const categories = {
     'Groceries',
     'Other'
   ],
-  income: [
+  INCOME: [
     'Salary',
     'Freelance',
     'Business',
@@ -51,7 +51,7 @@ const categories = {
 };
 
 export default function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionModalProps) {
-  const [type, setType] = useState<'income' | 'expense'>('expense');
+  const [type, setType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE');
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
@@ -65,10 +65,10 @@ export default function AddTransactionModal({ isOpen, onClose, onAdd }: AddTrans
 
     const transaction: Omit<Transaction, 'id'> = {
       description: description.trim(),
-      amount: type === 'expense' ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount)),
+      amount: Math.abs(parseFloat(amount)),
       category,
-      date: format(date, 'yyyy-MM-dd'),
-      type,
+      transactionDate: format(date, 'yyyy-MM-dd'),
+      type: type,
       notes: notes.trim() || undefined
     };
 
@@ -88,7 +88,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAdd }: AddTrans
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <DollarSign className="size-5 text-primary" />
+            <IndianRupee className="size-5 text-primary" />
             Add Transaction
           </DialogTitle>
           <DialogDescription>
@@ -100,7 +100,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAdd }: AddTrans
           {/* Transaction Type */}
           <div className="space-y-2">
             <Label>Transaction Type</Label>
-            <Select value={type} onValueChange={(value: 'income' | 'expense') => {
+            <Select value={type} onValueChange={(value: 'INCOME' | 'EXPENSE') => {
               setType(value);
               setCategory(''); // Reset category when type changes
             }}>
@@ -108,13 +108,13 @@ export default function AddTransactionModal({ isOpen, onClose, onAdd }: AddTrans
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="expense">
+                <SelectItem value="EXPENSE">
                   <div className="flex items-center gap-2">
                     <div className="size-2 rounded-full bg-destructive"></div>
                     Expense
                   </div>
                 </SelectItem>
-                <SelectItem value="income">
+                <SelectItem value="INCOME">
                   <div className="flex items-center gap-2">
                     <div className="size-2 rounded-full bg-success"></div>
                     Income
@@ -140,7 +140,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAdd }: AddTrans
           <div className="space-y-2">
             <Label htmlFor="amount">Amount *</Label>
             <div className="relative">
-              <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground" />
+              <IndianRupee className="absolute left-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground" />
               <Input
                 id="amount"
                 type="number"
