@@ -100,10 +100,10 @@ class ApiService {
           if (endpoint.includes('/auth/login') || endpoint.includes('/auth/signup')) {
             throw new Error(errorData.message === 'Bad credentials' ? 'Invalid email or password' : errorData.message || 'Authentication failed');
           }
-          // For other protected endpoints, redirect to login
+          // For other protected endpoints, remove token and throw error
+          // The calling component should handle the logout
           this.removeAuthToken();
-          window.location.href = '/login';
-          throw new Error('Unauthorized');
+          throw new Error('Authentication expired. Please log in again.');
         }
         
         throw new Error(errorData.message || `HTTP error! status: ${response.status}`);

@@ -117,12 +117,20 @@ export default function BudgetModal({ isOpen, onClose, categories, onUpdateBudge
   };
 
   const removeCategory = (categoryName: string) => {
-    setWorkingCategories(prev => prev.filter(cat => cat.name !== categoryName));
-    setBudgets(prev => {
-      const newBudgets = { ...prev };
-      delete newBudgets[categoryName];
-      return newBudgets;
-    });
+    // Prevent removing all categories - require at least one
+    if (workingCategories.length <= 1) {
+      alert('You must have at least one budget category.');
+      return;
+    }
+    
+    if (confirm(`Are you sure you want to remove the "${categoryName}" budget category? This action cannot be undone.`)) {
+      setWorkingCategories(prev => prev.filter(cat => cat.name !== categoryName));
+      setBudgets(prev => {
+        const newBudgets = { ...prev };
+        delete newBudgets[categoryName];
+        return newBudgets;
+      });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -246,18 +254,17 @@ export default function BudgetModal({ isOpen, onClose, categories, onUpdateBudge
                             ₹{category.spent.toFixed(2)} spent
                           </span>
                           </div>
-                          {isNewUser && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                              onClick={() => removeCategory(category.name)}
-                              title="Remove category"
-                            >
-                              <X className="size-3" />
-                            </Button>
-                          )}
+                          {/* Remove button for all users */}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                            onClick={() => removeCategory(category.name)}
+                            title="Remove this budget category"
+                          >
+                            <X className="size-3" />
+                          </Button>
                         </div>
                       </div>
                       

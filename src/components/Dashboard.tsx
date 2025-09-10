@@ -109,10 +109,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       setTransactions(formattedTransactions);
       setCategories(formattedCategories);
       setDashboardData(dashboardData);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load dashboard data:', error);
-      // If unauthorized, logout the user
-      if (error instanceof Error && error.message.includes('Unauthorized')) {
+      // If authentication expired, logout the user
+      if (error.message?.includes('Authentication expired') || error.message?.includes('Unauthorized')) {
         onLogout();
       }
     } finally {
@@ -136,23 +136,49 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       
       // Reload dashboard data to get updated information
       await loadDashboardData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to add transaction:', error);
+      
+      // If it's an authentication error, let the user know and trigger logout
+      if (error.message?.includes('Authentication expired')) {
+        alert('Your session has expired. Please log in again.');
+        onLogout();
+        return;
+      }
+      
+      // For other errors, show a user-friendly message
+      alert('Failed to add transaction. Please try again.');
     }
   };
 
   const handleUpdateBudgets = async (updatedCategories: Category[]) => {
     try {
-      // Convert categories back to budget format and update
+      const currentDate = new Date();
+      const currentMonth = currentDate.getMonth() + 1;
+      const currentYear = currentDate.getFullYear();
+      
+      // Get existing budgets from backend
+      const existingBudgets = await apiService.getBudgetsByMonth(currentMonth, currentYear);
+      
+      // Get list of category names that should remain
+      const updatedCategoryNames = new Set(updatedCategories.map(cat => cat.name));
+      
+      // Delete budgets for categories that were removed
+      for (const existingBudget of existingBudgets) {
+        if (!updatedCategoryNames.has(existingBudget.category) && existingBudget.id) {
+          await apiService.deleteBudget(existingBudget.id);
+        }
+      }
+      
+      // Create or update budgets for remaining categories
       for (const category of updatedCategories) {
         // Only create budgets for categories that have a budget amount set
         if (category.budget > 0) {
-          const currentDate = new Date();
           const budgetData = {
             category: category.name,
             budgetLimit: category.budget,
-            month: currentDate.getMonth() + 1,
-            year: currentDate.getFullYear()
+            month: currentMonth,
+            year: currentYear
           };
           await apiService.createOrUpdateBudget(budgetData);
         }
@@ -160,8 +186,18 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       
       // Reload dashboard data to get updated information
       await loadDashboardData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update budgets:', error);
+      
+      // If it's an authentication error, let the user know and trigger logout
+      if (error.message?.includes('Authentication expired')) {
+        alert('Your session has expired. Please log in again.');
+        onLogout();
+        return;
+      }
+      
+      // For other errors, show a user-friendly message
+      alert('Failed to update budgets. Please try again.');
     }
   };
 
