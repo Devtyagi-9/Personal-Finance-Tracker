@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { ImageWithFallback } from './figma/ImageWithFallback';
+import DemoRequestModal from './DemoRequestModal';
 import { 
   TrendingUp, 
   Shield, 
@@ -18,6 +20,8 @@ interface LandingPageProps {
 }
 
 export default function LandingPage({ onGetStarted, onLogin }: LandingPageProps) {
+  const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -68,7 +72,7 @@ export default function LandingPage({ onGetStarted, onLogin }: LandingPageProps)
                   Start Free Trial
                   <ChevronRight className="size-4 ml-2 group-hover:translate-x-1 transition-transform" />
                 </Button>
-                <Button variant="outline" size="lg">
+                <Button variant="outline" size="lg" onClick={() => setIsDemoModalOpen(true)}>
                   <BarChart3 className="size-4 mr-2" />
                   View Demo
                 </Button>
@@ -277,6 +281,12 @@ export default function LandingPage({ onGetStarted, onLogin }: LandingPageProps)
           </div>
         </div>
       </footer>
+
+      {/* Demo Request Modal */}
+      <DemoRequestModal 
+        isOpen={isDemoModalOpen} 
+        onClose={() => setIsDemoModalOpen(false)} 
+      />
     </div>
   );
 }
