@@ -16,12 +16,13 @@ import {
   Target,
   Wallet,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Trash2
 } from 'lucide-react';
 import { AreaChart, Area, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import AddTransactionModal from './AddTransactionModal';
 import BudgetModal from './BudgetModal';
-import apiService, { Transaction as ApiTransaction, Budget as ApiBudget, DashboardData } from '../services/apiService';
+import apiService, { DashboardData } from '../services/apiService';
 import Loading from './Loading';
 
 interface DashboardProps {
@@ -45,24 +46,6 @@ interface Category {
   color: string;
 }
 
-// Monthly data for charts
-const monthlyData = [
-  { month: 'Jul', income: 3200, expenses: 2400, net: 800 },
-  { month: 'Aug', income: 3400, expenses: 2600, net: 800 },
-  { month: 'Sep', income: 3100, expenses: 2800, net: 300 },
-  { month: 'Oct', income: 3600, expenses: 2500, net: 1100 },
-  { month: 'Nov', income: 3500, expenses: 2700, net: 800 },
-  { month: 'Dec', income: 3800, expenses: 2900, net: 900 },
-  { month: 'Jan', income: 4350, expenses: 2650, net: 1700 },
-];
-
-const pieChartData = [
-  { name: 'Food & Dining', value: 298.25, color: '#10b981' },
-  { name: 'Transportation', value: 165.80, color: '#0066cc' },
-  { name: 'Entertainment', value: 89.50, color: '#8b5cf6' },
-  { name: 'Shopping', value: 245.00, color: '#f59e0b' },
-];
-
 export default function Dashboard({ onLogout }: DashboardProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -70,6 +53,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [deletingTransactionId, setDeletingTransactionId] = useState<number | null>(null);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
 
   useEffect(() => {
@@ -120,6 +104,64 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
   };
 
+  // Generate monthly chart data from transactions
+  const generateMonthlyData = () => {
+    if (transactions.length === 0) {
+      return [];
+    }
+
+    const monthlyMap: { [key: string]: { income: number; expenses: number } } = {};
+    
+    transactions.forEach(transaction => {
+      const date = new Date(transaction.transactionDate);
+      const monthKey = date.toLocaleDateString('en-US', { month: 'short' });
+      
+      if (!monthlyMap[monthKey]) {
+        monthlyMap[monthKey] = { income: 0, expenses: 0 };
+      }
+      
+      if (transaction.type === 'INCOME') {
+        monthlyMap[monthKey].income += transaction.amount;
+      } else {
+        monthlyMap[monthKey].expenses += Math.abs(transaction.amount);
+      }
+    });
+
+    return Object.entries(monthlyMap).map(([month, data]) => ({
+      month,
+      income: data.income,
+      expenses: data.expenses,
+      net: data.income - data.expenses
+    }));
+  };
+
+  // Generate pie chart data from transactions
+  const generatePieChartData = () => {
+    if (transactions.length === 0) {
+      return [];
+    }
+
+    const categoryMap: { [key: string]: number } = {};
+    
+    transactions.forEach(transaction => {
+      if (transaction.type === 'EXPENSE') {
+        const amount = Math.abs(transaction.amount);
+        categoryMap[transaction.category] = (categoryMap[transaction.category] || 0) + amount;
+      }
+    });
+
+    const colors = ['#10b981', '#0066cc', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4', '#f97316', '#84cc16'];
+    
+    return Object.entries(categoryMap).map(([name, value], index) => ({
+      name,
+      value,
+      color: colors[index % colors.length]
+    }));
+  };
+
+  const monthlyData = generateMonthlyData();
+  const pieChartData = generatePieChartData();
+
   const handleAddTransaction = async (newTransaction: Omit<Transaction, 'id'>) => {
     try {
       // Convert display format to API format
@@ -148,6 +190,43 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       
       // For other errors, show a user-friendly message
       alert('Failed to add transaction. Please try again.');
+    }
+  };
+
+  const handleDeleteTransaction = async (transactionId: number, description: string) => {
+    console.log('Delete button clicked for transaction:', transactionId, description);
+    
+    if (!confirm(`Are you sure you want to delete the transaction "${description}"? This action cannot be undone.`)) {
+      console.log('Delete cancelled by user');
+      return;
+    }
+
+    try {
+      console.log('Starting delete process...');
+      setDeletingTransactionId(transactionId);
+      await apiService.deleteTransaction(transactionId);
+      console.log('Delete successful, reloading data...');
+      
+      // Reload dashboard data to get updated information
+      await loadDashboardData();
+      console.log('Data reloaded successfully');
+    } catch (error: any) {
+      console.error('Failed to delete transaction:', error);
+      
+      // More specific error handling
+      if (error.message?.includes('Authentication expired') || 
+          error.message?.includes('Unauthorized') ||
+          error.message?.includes('401')) {
+        alert('Your session has expired. Please log in again.');
+        onLogout();
+        return;
+      }
+      
+      // For other errors, show a user-friendly message
+      alert(`Failed to delete transaction: ${error.message || 'Unknown error'}. Please try again.`);
+    } finally {
+      console.log('Clearing loading state...');
+      setDeletingTransactionId(null);
     }
   };
 
@@ -338,47 +417,57 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             </CardHeader>
             <CardContent>
               <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={monthlyData}>
-                    <defs>
-                      <linearGradient id="income" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="expenses" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="month" stroke="#64748b" />
-                    <YAxis stroke="#64748b" />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'white', 
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="income"
-                      stroke="#10b981"
-                      fillOpacity={1}
-                      fill="url(#income)"
-                      strokeWidth={2}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="expenses"
-                      stroke="#ef4444"
-                      fillOpacity={1}
-                      fill="url(#expenses)"
-                      strokeWidth={2}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+                {monthlyData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={monthlyData}>
+                      <defs>
+                        <linearGradient id="income" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                        </linearGradient>
+                        <linearGradient id="expenses" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="month" stroke="#64748b" />
+                      <YAxis stroke="#64748b" />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: 'white', 
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                        }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="income"
+                        stroke="#10b981"
+                        fillOpacity={1}
+                        fill="url(#income)"
+                        strokeWidth={2}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="expenses"
+                        stroke="#ef4444"
+                        fillOpacity={1}
+                        fill="url(#expenses)"
+                        strokeWidth={2}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    <div className="text-center">
+                      <BarChart3 className="size-12 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No transaction data available</p>
+                      <p className="text-xs">Add some transactions to see trends</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -391,41 +480,53 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             </CardHeader>
             <CardContent>
               <div className="h-64 mb-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={pieChartData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={40}
-                      outerRadius={80}
-                      paddingAngle={2}
-                      dataKey="value"
-                    >
-                      {pieChartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      formatter={(value: number) => [`₹${value.toFixed(2)}`, 'Amount']}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="space-y-2">
-                {pieChartData.map((entry) => (
-                  <div key={entry.name} className="flex items-center justify-between text-sm text-[14px]">
-                    <div className="flex items-center gap-2">
-                      <div 
-                        className="size-3 rounded-full" 
-                        style={{ backgroundColor: entry.color }}
-                      ></div>
-                      <span>{entry.name}</span>
+                {pieChartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={pieChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={80}
+                        paddingAngle={2}
+                        dataKey="value"
+                      >
+                        {pieChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        formatter={(value: number) => [`₹${value.toFixed(2)}`, 'Amount']}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    <div className="text-center">
+                      <Target className="size-12 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No expense data available</p>
+                      <p className="text-xs">Add some expenses to see distribution</p>
                     </div>
-                    <span className="text-muted-foreground">₹{entry.value.toFixed(2)}</span>
                   </div>
-                ))}
+                )}
               </div>
+              {pieChartData.length > 0 && (
+                <div className="space-y-2">
+                  {pieChartData.map((entry) => (
+                    <div key={entry.name} className="flex items-center justify-between text-sm text-[14px]">
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="size-3 rounded-full" 
+                          style={{ backgroundColor: entry.color }}
+                        ></div>
+                        <span>{entry.name}</span>
+                      </div>
+                      <span className="text-muted-foreground">₹{entry.value.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -453,7 +554,13 @@ export default function Dashboard({ onLogout }: DashboardProps) {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {transactions.slice(0, 8).map((transaction) => (
+                  {transactions.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <p>No transactions found.</p>
+                      <p className="text-sm">Add some transactions to see them here.</p>
+                    </div>
+                  ) : (
+                    transactions.slice(0, 8).map((transaction) => (
                     <div key={transaction.id} className="flex items-center justify-between p-4 rounded-lg border bg-card/50">
                       <div className="flex items-center gap-4">
                         <div className={`size-10 rounded-full flex items-center justify-center ${
@@ -475,16 +582,32 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                           </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className={`text-[16px] ${
-                          transaction.type === 'INCOME' ? 'text-success' : 'text-destructive'
-                        }`}>
-                          {transaction.type === 'INCOME' ? '+' : ''}
-                          ₹{Math.abs(transaction.amount).toFixed(2)}
-                        </p>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <p className={`text-[16px] ${
+                            transaction.type === 'INCOME' ? 'text-success' : 'text-destructive'
+                          }`}>
+                            {transaction.type === 'INCOME' ? '+' : ''}
+                            ₹{Math.abs(transaction.amount).toFixed(2)}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleDeleteTransaction(transaction.id, transaction.description);
+                          }}
+                          disabled={deletingTransactionId === transaction.id}
+                          className="h-9 w-9 p-0 text-muted-foreground hover:text-destructive disabled:opacity-50 cursor-pointer hover:bg-destructive/10"
+                          title="Delete transaction"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
-                  ))}
+                  )))}
                 </div>
               </CardContent>
             </Card>

@@ -109,7 +109,21 @@ class ApiService {
         throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
 
-      return await response.json();
+      // Check if response has content to parse
+      const contentType = response.headers.get('content-type');
+      const contentLength = response.headers.get('content-length');
+      
+      // If no content or empty response, return null/undefined for void operations
+      if (contentLength === '0' || !contentType?.includes('application/json')) {
+        return null as any;
+      }
+
+      const text = await response.text();
+      if (!text.trim()) {
+        return null as any;
+      }
+
+      return JSON.parse(text);
     } catch (error) {
       console.error('API request failed:', error);
       throw error;

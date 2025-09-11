@@ -159,13 +159,16 @@ export default function AddTransactionModal({ isOpen, onClose, onAdd }: AddTrans
           <div className="space-y-2">
             <Label>Category *</Label>
             <Select value={category} onValueChange={setCategory} required>
-              <SelectTrigger>
+              <SelectTrigger className="h-11">
                 <SelectValue placeholder="Select a category" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-60">
                 {categories[type].map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
+                  <SelectItem key={cat} value={cat} className="py-3 px-4 cursor-pointer hover:bg-accent">
+                    <div className="flex items-center gap-2">
+                      <div className={`size-2 rounded-full ${type === 'EXPENSE' ? 'bg-destructive' : 'bg-success'}`}></div>
+                      <span className="text-sm">{cat}</span>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>

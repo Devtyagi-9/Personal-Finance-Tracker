@@ -295,7 +295,7 @@ export default function BudgetModal({ isOpen, onClose, categories, onUpdateBudge
                             onClick={() => applySuggestedBudget(category.name)}
                             className="shrink-0"
                           >
-                            Use ${suggestedAmount}
+                            Use ₹{suggestedAmount}
                           </Button>
                         )}
                         <div className="text-sm text-muted-foreground min-w-16 text-right">
